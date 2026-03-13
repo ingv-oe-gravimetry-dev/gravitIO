@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gravitio"
+version = "1.0.0"
+description = "gravtio is a Python package that provides the parser and corrections for most principal gravimeter data formats"
+readme = "docs/README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+
+authors = [
+    { name = "Luca Timoteo Mirabella", email = "luca.mirabella@ingv.it" },
+]
+
+dependencies = ["polars", "pandas", "pymseed"]
+
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Libraries",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff", "mypy"]
+
+[project.urls]
+Homepage = "https://github.com/lucamir/gravitIO"
+Repository = "https://github.com/lucamir/gravitIO"
+
+[tool.setuptools.package-data]
+"gravitio" = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+xfail_strict = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+exclude = "build|dist"
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
