@@ -30,7 +30,7 @@ class IGravExtractor(Extractor):
             return []
 
         channels = [line.strip().lower().split(":")[-1] for line in lines[start_idx:end_idx]]
-        return ["timestamp"] + channels[:-1]
+        return ["timestamp"] + [c for c in channels if c.lower() != "timestamp"]
 
     def get_section_start_index(self, path: PathLike, section_tag: str) -> int:
         """
