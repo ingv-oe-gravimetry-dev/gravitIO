@@ -15,8 +15,6 @@ class AQGExtractor(CSVExtractor):
     A class for extracting data from CSV AQG files.
     """
 
-    datetime_format: str = "%Y/%m/%d %H:%M:%S"
-
     def _extract_impl(self, path: PathLike) -> pl.DataFrame:
         """
         Loads data from a CSV AQG file into a polars DataFrame.
@@ -48,12 +46,7 @@ class AQGExtractor(CSVExtractor):
                 df.height,
             )
 
-            df = df.with_columns(
-                (pl.col("date (utc)").cast(pl.String) + " " + pl.col("time (utc)").cast(pl.String))
-                .str.strptime(pl.Datetime, self.datetime_format, strict=False)
-                .alias("timestamp")
-            )
-
+            df = df.with_columns(pl.from_epoch(pl.col("timestamp (s)") * 1_000_000, time_unit="us").alias("timestamp"))
             df = df.drop(["timestamp (s)", "date (utc)", "time (utc)"])
 
             # Reorder 'timestamp' to be the first column
