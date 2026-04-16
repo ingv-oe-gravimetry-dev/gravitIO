@@ -21,6 +21,8 @@ The package supports two usage patterns:
 - a high-level interface through the **facade API**
 - a modular interface through **extractor**, **correction**, and **export** components
 
+Input paths passed to `extract(...)` can be a file, a directory, or a compressed archive (`.gz`, `.tar.gz`, `.zip`).
+
 ### High-level usage via the facade API
 
 ```python
@@ -114,6 +116,7 @@ exporter.to_miniseed(
 
 ## Supported Formats
 
+- **Compressed archives**: `.gz`, `.tar.gz`, and `.zip` containing supported instrument files.
 - **AQG**: instrument CSV files (raw and averaged). Note: some corrections cannot be applied to averaged files.
 - **iGrav**: instrument `.tsf` files (Tsoft format).
 - **Scintrex CG-6**: instrument `.dat` files.
