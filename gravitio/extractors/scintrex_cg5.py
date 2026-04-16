@@ -27,25 +27,6 @@ class CG5Extractor(Extractor):
                     return i
         raise ValueError("Header line not found in CG5 file")
 
-    def get_header(self, path: PathLike) -> list[str]:
-        path = Path(path)
-
-        header_idx = self._get_header_index(path)
-        with open(path, encoding="utf-8") as f:
-            for i, line in enumerate(f):
-                if i == header_idx:
-                    header_line = line.strip().lstrip("/")
-                    break
-
-        header_line = re.sub(r"-+", " ", header_line)
-
-        header = [
-            col.rstrip(".")  # remove the trailing dot
-            for col in header_line.strip().lower().split()
-        ]
-
-        return header
-
     def _extract_impl(self, path: PathLike) -> pl.DataFrame:
         path = Path(path)
         if not path.exists():
@@ -53,7 +34,6 @@ class CG5Extractor(Extractor):
 
         try:
             header_idx = self._get_header_index(path)
-
             header = self.get_header(path)
 
             df = pl.read_csv(
@@ -95,6 +75,26 @@ class CG5Extractor(Extractor):
         except Exception as e:
             logger.error("Error while reading CG5 file: %s", e)
             raise
+
+    def get_header(self, path: PathLike) -> list[str]:
+        path = Path(path)
+
+        header_line = ""
+        header_idx = self._get_header_index(path)
+        with open(path, encoding="utf-8") as f:
+            for i, line in enumerate(f):
+                if i == header_idx:
+                    header_line = line.strip().lstrip("/")
+                    break
+
+        header_line = re.sub(r"-+", " ", header_line)
+
+        header = [
+            col.rstrip(".")  # remove the trailing dot
+            for col in header_line.strip().lower().split()
+        ]
+
+        return header
 
     def get_end(self, path: PathLike) -> datetime.datetime:
         path = Path(path)

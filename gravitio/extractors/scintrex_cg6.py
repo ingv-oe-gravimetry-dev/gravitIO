@@ -20,22 +20,7 @@ class CG6Extractor(Extractor):
     file_extension = ".dat"
     datetime_format: str = "%m/%d/%Y %H:%M:%S"
 
-    def get_header(self, path: PathLike) -> list[str]:
-        """
-        Retrieves the header (channels) from the drift file.
-        """
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"File not found: {path}")
-
-        with open(path, encoding="utf-8") as f:
-            lines = f.readlines()
-
-        start = self._get_start(path)
-        header_line = lines[start].strip()
-
-        return header_line.lstrip("/").lower().split(self.delimiter)
-
-    def _get_start(self, path: PathLike) -> int:
+    def _get_header_index(self, path: PathLike) -> int:
         with open(path, encoding="utf-8") as f:
             for idx, line in enumerate(f):
                 line = line.strip()
@@ -55,7 +40,7 @@ class CG6Extractor(Extractor):
             df: pl.DataFrame = pl.read_csv(
                 path,
                 separator=self.delimiter,
-                skip_rows=self._get_start(path),
+                skip_rows=self._get_header_index(path),
                 ignore_errors=True,
             )
             df.columns = header
@@ -76,12 +61,32 @@ class CG6Extractor(Extractor):
         except Exception as e:
             raise RuntimeError(f"Error reading file: {e}") from e
 
+    def get_header(self, path: PathLike) -> list[str]:
+        """
+        Retrieves the header (channels) from the drift file.
+        """
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"File not found: {path}")
+
+        with open(path, encoding="utf-8") as f:
+            lines = f.readlines()
+
+        start = self._get_header_index(path)
+        header_line = lines[start].strip()
+
+        return header_line.lstrip("/").lower().split(self.delimiter)
+
     def get_end(self, path: PathLike) -> datetime:
         """
         Get the last timestamp from the drift file.
         """
         df = (
-            pl.scan_csv(path, separator=self.delimiter, skip_rows=self._get_start(path), ignore_errors=True)
+            pl.scan_csv(
+                path,
+                separator=self.delimiter,
+                skip_rows=self._get_header_index(path),
+                ignore_errors=True,
+            )
             .tail(1)
             .collect()
         )
