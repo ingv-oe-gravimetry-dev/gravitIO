@@ -49,7 +49,7 @@ class Extractor(ABC):
 
         raise NotImplementedError
 
-    def _get_files_from_gz(self, gz_path: PathLike) -> Iterator[str]:
+    def _get_files_from_gz(self, gz_path: PathLike, temp_dir: Path | None = None) -> Iterator[str]:
         """
         Generalizes reading a compressed .gz file for any file type.
         This function looks for lines that match the file extension.
@@ -57,8 +57,9 @@ class Extractor(ABC):
 
         gz_path = Path(gz_path)
 
-        temp_dir: Path = Path(tempfile.gettempdir()) / "temp"
-        temp_dir.mkdir(exist_ok=True)
+        if temp_dir is None:
+            temp_dir = Path(tempfile.gettempdir()) / "temp"
+        temp_dir.mkdir(parents=True, exist_ok=True)
 
         filename: str = Path(gz_path).stem
         out_path: Path = temp_dir / filename
@@ -69,15 +70,16 @@ class Extractor(ABC):
         if any(out_path.name.endswith(ext) for ext in self.file_extension):
             yield str(out_path)
 
-    def _get_files_from_tar_gz(self, tar_gz_path: PathLike) -> Iterator[str]:
+    def _get_files_from_tar_gz(self, tar_gz_path: PathLike, temp_dir: Path | None = None) -> Iterator[str]:
         """
         Generalizes extracting files from a .tar.gz archive based on the file extension.
         """
 
         tar_gz_path = Path(tar_gz_path)
 
-        temp_dir: Path = Path(tempfile.gettempdir()) / "temp"
-        temp_dir.mkdir(exist_ok=True)
+        if temp_dir is None:
+            temp_dir = Path(tempfile.gettempdir()) / "temp"
+        temp_dir.mkdir(parents=True, exist_ok=True)
 
         with tarfile.open(tar_gz_path, "r:gz") as tar:
             for member in tar.getmembers():
@@ -85,7 +87,7 @@ class Extractor(ABC):
                     tar.extract(member, path=temp_dir)
                     yield str(temp_dir / member.name)
 
-    def file_list(self, path: PathLike) -> list[Path]:
+    def file_list(self, path: PathLike, temp_dir: Path | None = None) -> list[Path]:
         """
         Returns a list of files based on the provided path and file extensions,
         including files inside .gz and .tar.gz archives.
@@ -94,6 +96,9 @@ class Extractor(ABC):
         logger.debug("Scanning for files in: %s with extensions %s", path, self.file_extension)
 
         path = Path(path)
+        if temp_dir is not None:
+            temp_dir = Path(temp_dir)
+            temp_dir.mkdir(parents=True, exist_ok=True)
         files: list[Path] = []
 
         if path.is_file():
@@ -101,10 +106,10 @@ class Extractor(ABC):
                 return [path]
 
             elif path.suffix == ".gz" and not path.name.endswith(".tar.gz"):
-                return list(map(Path, self._get_files_from_gz(path)))
+                return list(map(Path, self._get_files_from_gz(path, temp_dir=temp_dir)))
 
             elif path.name.endswith(".tar.gz"):
-                return list(map(Path, self._get_files_from_tar_gz(path)))
+                return list(map(Path, self._get_files_from_tar_gz(path, temp_dir=temp_dir)))
 
             logger.error("Invalid file format: %s", path)
             return []
@@ -114,9 +119,9 @@ class Extractor(ABC):
                 if file.name.endswith(self.file_extension):
                     files.append(file)
                 elif file.suffix == ".gz" and not file.name.endswith(".tar.gz"):
-                    files.extend(map(Path, self._get_files_from_gz(file)))
+                    files.extend(map(Path, self._get_files_from_gz(file, temp_dir=temp_dir)))
                 elif file.name.endswith(".tar.gz"):
-                    files.extend(map(Path, self._get_files_from_tar_gz(file)))
+                    files.extend(map(Path, self._get_files_from_tar_gz(file, temp_dir=temp_dir)))
 
             return files
 
@@ -131,7 +136,14 @@ class Extractor(ABC):
         nan_subset: list[str] | None = None,
     ) -> pl.DataFrame | None:
         """
-        Extract data from files and optionally clean the resulting DataFrame.
+        Convenience API: load all files and return a single merged DataFrame.
+
+        This method reads every matching file, concatenates all per-file DataFrames
+        in memory, sorts by ``timestamp``, and optionally applies cleaning.
+        It is simple to use, but can require significant RAM on very large datasets.
+
+        For file-by-file processing (progress bars, incremental export, lower memory
+        peaks), use ``extract_iter`` instead.
         """
 
         if path is None:
@@ -139,17 +151,19 @@ class Extractor(ABC):
 
         path = Path(path)
 
-        files_to_process = self.file_list(path)
-        total_size_mb = sum(os.path.getsize(f) for f in files_to_process) / (1024 * 1024)
+        with tempfile.TemporaryDirectory(prefix="gravitio_") as tmp_dir:
+            files_to_process = self.file_list(path, temp_dir=Path(tmp_dir))
+            total_size_mb = sum(os.path.getsize(f) for f in files_to_process) / (1024 * 1024)
 
-        if total_size_mb > 500:
-            logger.warning(
-                "LARGE DATASET DETECTED: %s files totaling %.2f MB.",
-                len(files_to_process),
-                total_size_mb,
-            )
+            if total_size_mb > 500:
+                logger.warning(
+                    "LARGE DATASET DETECTED: %s files totaling %.2f MB.",
+                    len(files_to_process),
+                    total_size_mb,
+                )
 
-        frames = [df for _, df in self.extract_iter(path)]
+            # Eager mode: collect all per-file DataFrames before concatenation.
+            frames = [self._extract_impl(file) for file in files_to_process]
         if not frames:
             return None
 
@@ -172,23 +186,28 @@ class Extractor(ABC):
         nan_subset: list[str] | None = None,
     ) -> Iterator[tuple[PathLike, pl.DataFrame]]:
         """
-        Extract data from file(s) one by one.
+        Streaming API: yield one ``(file, DataFrame)`` pair at a time.
+
+        Unlike ``extract``, this method does not concatenate all frames into one
+        final DataFrame. It is intended for incremental workflows (GUI progress,
+        per-file error handling, chunked processing, lower peak memory usage).
         """
 
         path = Path(path)
-        files_to_process = self.file_list(path)
+        with tempfile.TemporaryDirectory(prefix="gravitio_") as tmp_dir:
+            files_to_process = self.file_list(path, temp_dir=Path(tmp_dir))
 
-        if not files_to_process:
-            logger.error("No data found in files at %s", path)
-            return
+            if not files_to_process:
+                logger.error("No data found in files at %s", path)
+                return
 
-        for file in files_to_process:
-            df: pl.DataFrame = self._extract_impl(file)
+            for file in files_to_process:
+                df: pl.DataFrame = self._extract_impl(file)
 
-            if drop_duplicate_dt:
-                df = drop_duplicate_datetime(df, column="timestamp")
+                if drop_duplicate_dt:
+                    df = drop_duplicate_datetime(df, column="timestamp")
 
-            if drop_nan:
-                df = dropnan(df, subset=nan_subset)
+                if drop_nan:
+                    df = dropnan(df, subset=nan_subset)
 
-            yield file, df
+                yield file, df
