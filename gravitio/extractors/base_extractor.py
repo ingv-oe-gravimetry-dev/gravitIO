@@ -4,6 +4,7 @@ import os
 import shutil
 import tarfile
 import tempfile
+import zipfile
 from abc import ABC, abstractmethod
 from collections.abc import Iterator, Sequence
 from datetime import datetime
@@ -109,10 +110,42 @@ class Extractor(ABC):
                     shutil.copyfileobj(source, destination)
                 yield str(output_path)
 
+    def _get_files_from_zip(self, zip_path: PathLike, temp_dir: Path | None = None) -> Iterator[str]:
+        """
+        Generalizes extracting files from a .zip archive based on the file extension.
+        """
+
+        zip_path = Path(zip_path)
+
+        if temp_dir is None:
+            temp_dir = Path(tempfile.gettempdir()) / "temp"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        temp_dir_resolved = temp_dir.resolve()
+        extensions = self._file_extensions()
+
+        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            for zip_info in zip_ref.infolist():
+                if zip_info.is_dir():
+                    continue
+
+                member_name = zip_info.filename.replace("\\", "/")
+                if not member_name.endswith(extensions):
+                    continue
+
+                output_path = (temp_dir / Path(member_name)).resolve()
+                if os.path.commonpath([str(temp_dir_resolved), str(output_path)]) != str(temp_dir_resolved):
+                    logger.warning("Skipping unsafe archive member path: %s", zip_info.filename)
+                    continue
+
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                with zip_ref.open(zip_info, "r") as source, open(output_path, "wb") as destination:
+                    shutil.copyfileobj(source, destination)
+                yield str(output_path)
+
     def file_list(self, path: PathLike, temp_dir: Path | None = None) -> list[Path]:
         """
         Returns a list of files based on the provided path and file extensions,
-        including files inside .gz and .tar.gz archives.
+        including files inside .gz, .tar.gz, and .zip archives.
         """
 
         logger.debug("Scanning for files in: %s with extensions %s", path, self.file_extension)
@@ -134,6 +167,9 @@ class Extractor(ABC):
             elif path.name.endswith(".tar.gz"):
                 return list(map(Path, self._get_files_from_tar_gz(path, temp_dir=temp_dir)))
 
+            elif path.suffix == ".zip":
+                return list(map(Path, self._get_files_from_zip(path, temp_dir=temp_dir)))
+
             logger.error("Invalid file format: %s", path)
             return []
 
@@ -145,6 +181,8 @@ class Extractor(ABC):
                     files.extend(map(Path, self._get_files_from_gz(file, temp_dir=temp_dir)))
                 elif file.name.endswith(".tar.gz"):
                     files.extend(map(Path, self._get_files_from_tar_gz(file, temp_dir=temp_dir)))
+                elif file.suffix == ".zip":
+                    files.extend(map(Path, self._get_files_from_zip(file, temp_dir=temp_dir)))
 
             return files
 
