@@ -23,19 +23,14 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff", "mypy"]
+dev = ["ruff", "mypy"]
 
 [project.urls]
-Homepage = "https://github.com/lucamir/gravitIO"
-Repository = "https://github.com/lucamir/gravitIO"
+Homepage = "https://github.com/ingv-oe-gravimetry-dev/gravitIO"
+Repository = "https://github.com/ingv-oe-gravimetry-dev/gravitIO"
 
 [tool.setuptools.package-data]
 "gravitio" = ["py.typed"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "-ra"
-xfail_strict = true
 
 [tool.ruff]
 line-length = 120

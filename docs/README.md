@@ -1,36 +1,52 @@
 # gravitIO 🍎
 
-`gravitio` is a Python package that provides parsers, basics corrections for most principal gravimeter data formats, including **AQG** (Absolute Quantum Gravimeter) and **iGrav** (Superconducting Gravimeter).
+`gravitio` is a Python package that provides parsers and basic corrections for major gravimeter data formats, including **AQG** (Absolute Quantum Gravimeter) and **iGrav** (Superconducting Gravimeter).
+
+Developed by [@lucamir](https://github.com/lucamir).
 
 ## Installation
 
-To install `gravitio`, you can use pip (assuming you have the package locally or it's published):
+Install `gravitio` directly from GitHub:
 
 ```bash
-pip install git+https://github.com/lucamir/gravitIO
+pip install git+https://github.com/ingv-oe-gravimetry-dev/gravitIO
 ```
 
 ## Usage
 
 `gravitio` provides a simple interface to extract data from gravimeter files into **Polars DataFrames** for fast processing.
 
-### Basic Usage
+The package supports two usage patterns:
+
+- a high-level interface through the **facade API**
+- a modular interface through **extractor**, **correction**, and **export** components
+
+### High-level usage via the facade API
 
 ```python
 from gravitio.instruments.igrav import IGrav
 from gravitio.instruments.aqg import AQG
 from gravitio.instruments.cg6 import CG6
-from gravitio.transforms.resampling import resample
+from gravitio.transforms.resampling.resample import resample
 
 # -------- iGrav Example --------
 igrav = IGrav()
+
 # Extract returns a Polars DataFrame
 df_igrav = igrav.extract("path/to/file.tsf")
 
-# Apply barometric correction
+# Apply corrections
 # Assuming column 1 is gravity and column 2 is pressure
-df_igrav = igrav.apply_grav_conversion(df_igrav, grav_col_index=1, conversion_factor=-98.40)
-df_igrav = igrav.apply_baro_correction(df_igrav, grav_col_index=1, baro_col_index=2)
+df_igrav = igrav.apply_grav_conversion(
+    df_igrav,
+    grav_col_index=1,
+    conversion_factor=-98.40,
+)
+df_igrav = igrav.apply_baro_corr(
+    df_igrav,
+    grav_col_index=1,
+    baro_col_index=2,
+)
 
 # Resample and export
 df_igrav = resample(df_igrav, freq=10)
@@ -51,21 +67,60 @@ df_cg6 = cg6.mean_by_station(df_cg6)
 cg6.to_excel(df_cg6, "cg6_results.xlsx")
 ```
 
+### Advanced usage via extractor, correction, and export components
+
+```python
+# -------- iGrav Example --------
+from gravitio.exporters import Exporter
+from gravitio.corrections.igrav import IGravCorrection
+from gravitio.extractors.igrav import IGravExtractor
+
+igrav_extractor = IGravExtractor()
+igrav_correction = IGravCorrection()
+exporter = Exporter()
+
+df_igrav = igrav_extractor.extract("path/to/file.tsf")
+df_igrav = igrav_correction.apply_grav_conversion(
+    df_igrav,
+    grav_col_index=1,
+    conversion_factor=-98.40,
+)
+exporter.to_csv(df_igrav, "path/results.csv")
+
+
+# -------- AQG Example --------
+from gravitio.exporters import Exporter
+from gravitio.extractors.aqg import AQGExtractor
+
+aqg_extractor = AQGExtractor()
+exporter = Exporter()
+
+df_aqg = aqg_extractor.extract("path/to/aqg_dir/")
+exporter.to_miniseed(
+    df_aqg,
+    path="path_to_output_dir",
+    network="network_string_code",
+    station="station_string_code",
+    channels=[
+        {
+            "column": 1,
+            "channel": "HHZ",
+            "conversion": 1.0,
+        }
+    ],
+    location="location_string_code",
+)
+```
+
 ## Supported Formats
 
-- **AQG**: Instrument CSV files (raw and averaged). Note: some corrections cannot be applied to the averaged files.
-- **iGrav**: Instrument .tsf files (Tsoft format).
-- **Scintrex CG-6**: Instrument .dat files.
-- **Scintrex CG-5**: Instrument .txt files.
-- **Micro-g LaCoste FG5**: Instrument .set.txt project files.
+- **AQG**: instrument CSV files (raw and averaged). Note: some corrections cannot be applied to averaged files.
+- **iGrav**: instrument `.tsf` files (Tsoft format).
+- **Scintrex CG-6**: instrument `.dat` files.
+- **Scintrex CG-5**: instrument `.txt` files.
+- **Micro-g LaCoste FG5**: instrument `.set.txt` project files.
 
 ## Development
-
-Run tests:
-
-```bash
-pytest
-```
 
 Run linting:
 

@@ -5,7 +5,7 @@ import shutil
 import tarfile
 import tempfile
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from datetime import datetime
 from pathlib import Path
 
@@ -23,7 +23,7 @@ class Extractor(ABC):
     Base class for data extractors.
     """
 
-    file_extension: str
+    file_extension: str | Sequence[str]
 
     @abstractmethod
     def _extract_impl(self, path: PathLike) -> pl.DataFrame:
@@ -49,6 +49,12 @@ class Extractor(ABC):
 
         raise NotImplementedError
 
+    def _file_extensions(self) -> tuple[str, ...]:
+        """Return file extensions as a tuple regardless of class-level declaration."""
+        if isinstance(self.file_extension, str):
+            return (self.file_extension,)
+        return tuple(self.file_extension)
+
     def _get_files_from_gz(self, gz_path: PathLike, temp_dir: Path | None = None) -> Iterator[str]:
         """
         Generalizes reading a compressed .gz file for any file type.
@@ -67,7 +73,8 @@ class Extractor(ABC):
         with gzip.open(gz_path, "rb") as f_in, open(out_path, "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)
 
-        if any(out_path.name.endswith(ext) for ext in self.file_extension):
+        extensions = self._file_extensions()
+        if out_path.name.endswith(extensions):
             yield str(out_path)
 
     def _get_files_from_tar_gz(self, tar_gz_path: PathLike, temp_dir: Path | None = None) -> Iterator[str]:
@@ -80,12 +87,27 @@ class Extractor(ABC):
         if temp_dir is None:
             temp_dir = Path(tempfile.gettempdir()) / "temp"
         temp_dir.mkdir(parents=True, exist_ok=True)
+        temp_dir_resolved = temp_dir.resolve()
+        extensions = self._file_extensions()
 
         with tarfile.open(tar_gz_path, "r:gz") as tar:
             for member in tar.getmembers():
-                if any(member.name.endswith(ext) for ext in self.file_extension):
-                    tar.extract(member, path=temp_dir)
-                    yield str(temp_dir / member.name)
+                if not member.isfile() or not member.name.endswith(extensions):
+                    continue
+
+                output_path = (temp_dir / member.name).resolve()
+                if os.path.commonpath([str(temp_dir_resolved), str(output_path)]) != str(temp_dir_resolved):
+                    logger.warning("Skipping unsafe archive member path: %s", member.name)
+                    continue
+
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                source = tar.extractfile(member)
+                if source is None:
+                    continue
+
+                with source, open(output_path, "wb") as destination:
+                    shutil.copyfileobj(source, destination)
+                yield str(output_path)
 
     def file_list(self, path: PathLike, temp_dir: Path | None = None) -> list[Path]:
         """
@@ -100,9 +122,10 @@ class Extractor(ABC):
             temp_dir = Path(temp_dir)
             temp_dir.mkdir(parents=True, exist_ok=True)
         files: list[Path] = []
+        extensions = self._file_extensions()
 
         if path.is_file():
-            if path.name.endswith(self.file_extension):
+            if path.name.endswith(extensions):
                 return [path]
 
             elif path.suffix == ".gz" and not path.name.endswith(".tar.gz"):
@@ -116,7 +139,7 @@ class Extractor(ABC):
 
         if path.is_dir():
             for file in path.rglob("*"):
-                if file.name.endswith(self.file_extension):
+                if file.name.endswith(extensions):
                     files.append(file)
                 elif file.suffix == ".gz" and not file.name.endswith(".tar.gz"):
                     files.extend(map(Path, self._get_files_from_gz(file, temp_dir=temp_dir)))

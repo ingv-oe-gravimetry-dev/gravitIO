@@ -25,9 +25,10 @@ def exporter(extension: str) -> Callable:
                 raise ValueError("Expected at least 'self' as first argument")
 
             self_obj = args[0]
+            call_kwargs = dict(kwargs)
 
             # ---------- EXTRACT df and path ----------
-            df = kwargs.get("df", None)
+            df = call_kwargs.pop("df", None)
             if len(args) > 1:
                 df = args[1]
 
@@ -35,7 +36,7 @@ def exporter(extension: str) -> Callable:
                 logger.error("No data (df) provided to export.")
                 raise ValueError("No data (df) provided to export.")
 
-            path = kwargs.get("path", None)
+            path = call_kwargs.pop("path", None)
             if len(args) > 2:
                 path = args[2]
 
@@ -60,13 +61,13 @@ def exporter(extension: str) -> Callable:
                 raise RuntimeError(f"Cannot create directory for {path}: {e}") from e
 
             # ---------- OPTIONAL TIMESTAMP FORMAT ----------
-            datetime_format = kwargs.get("datetime_format", "%Y-%m-%d %H:%M:%S")
+            datetime_format = call_kwargs.pop("datetime_format", "%Y-%m-%d %H:%M:%S")
             if "timestamp" in df.columns:
                 df = df.with_columns(pl.col("timestamp").dt.strftime(datetime_format).alias("timestamp"))
 
             # ---------- CALL ORIGINAL FUNCTION ----------
             try:
-                func(*args, **kwargs)
+                func(self_obj, df, path, *args[3:], **call_kwargs)
             except Exception as e:
                 logger.exception("Failed to export data to %s", path)
                 raise RuntimeError(f"Failed to export data to {path}: {e}") from e

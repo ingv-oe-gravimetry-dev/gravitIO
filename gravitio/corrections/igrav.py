@@ -77,7 +77,7 @@ class IGravCorrection(Correction):
             df,
             grav_col_index=grav_col_index,
             baro_col_index=baro_col_index,
-            baro_correction_factor=baro_corr_factor if baro_corr_factor else self._baro_corr_factor,
+            baro_correction_factor=self._baro_corr_factor if baro_corr_factor is None else baro_corr_factor,
         )
 
         return df

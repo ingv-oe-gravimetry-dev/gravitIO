@@ -17,7 +17,7 @@ class CG6Extractor(Extractor):
     """
 
     delimiter: str = "\t"
-    file_extension: str = ".dat"
+    file_extension = ".dat"
     datetime_format: str = "%m/%d/%Y %H:%M:%S"
 
     def get_header(self, path: PathLike) -> list[str]:

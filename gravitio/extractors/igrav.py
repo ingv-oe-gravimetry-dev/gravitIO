@@ -17,8 +17,8 @@ class IGravExtractor(Extractor):
     """
 
     delimiter: str = r"\s{2,}"
+    file_extension = ".tsf"
     datetime_format: str = "%Y %m %d %H %M %S"
-    file_extension: str = ".tsf"
 
     def get_header(self, path: PathLike) -> list[str]:
         path = Path(path)

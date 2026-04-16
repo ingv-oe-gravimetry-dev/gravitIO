@@ -17,19 +17,25 @@ class CG5Extractor(Extractor):
     """
 
     delimiter: str = r"\s+"
-    file_extension: str = ".txt"
+    file_extension = ".txt"
     datetime_format: str = "%Y/%m/%d %H:%M:%S"
+
+    def _get_header_index(self, path: PathLike) -> int:
+        with open(path, encoding="utf-8") as f:
+            for i, line in enumerate(f):
+                if line.strip().startswith("/-"):
+                    return i
+        raise ValueError("Header line not found in CG5 file")
 
     def get_header(self, path: PathLike) -> list[str]:
         path = Path(path)
 
+        header_idx = self._get_header_index(path)
         with open(path, encoding="utf-8") as f:
-            for line in f:
-                if line.strip().startswith("/-"):
+            for i, line in enumerate(f):
+                if i == header_idx:
                     header_line = line.strip().lstrip("/")
                     break
-            else:
-                raise ValueError("Header line not found in CG5 file")
 
         header_line = re.sub(r"-+", " ", header_line)
 
@@ -46,15 +52,7 @@ class CG5Extractor(Extractor):
             raise FileNotFoundError(f"File not found: {path}")
 
         try:
-            header_idx = None
-            with open(path, encoding="utf-8") as f:
-                for i, line in enumerate(f):
-                    if line.strip().startswith("/-"):
-                        header_idx = i
-                        break
-
-            if header_idx is None:
-                raise ValueError("Header line not found")
+            header_idx = self._get_header_index(path)
 
             header = self.get_header(path)
 
@@ -100,16 +98,7 @@ class CG5Extractor(Extractor):
 
     def get_end(self, path: PathLike) -> datetime.datetime:
         path = Path(path)
-
-        header_idx = None
-        with open(path, encoding="utf-8") as f:
-            for i, line in enumerate(f):
-                if line.strip().startswith("/------LINE"):
-                    header_idx = i
-                    break
-
-        if header_idx is None:
-            raise ValueError("Header line not found")
+        header_idx = self._get_header_index(path)
 
         df = pl.read_csv(
             path,

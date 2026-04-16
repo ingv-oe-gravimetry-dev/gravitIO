@@ -16,7 +16,7 @@ class FG5Extractor(Extractor):
     """
 
     delimiter: str = "\t"
-    file_extension: str = ".set.txt"
+    file_extension = ".set.txt"
     datetime_format: str = "%m/%d/%Y %H:%M:%S"
 
     def get_header(self, path: PathLike) -> list[str]:
