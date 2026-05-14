@@ -13,8 +13,8 @@ class IGravCorrection(Correction):
     """
 
     def __init__(self) -> None:
-        self.grav_col_name: str | None = "grav"
-        self.baro_col_name: str | None = "baro-press"
+        self.grav_col_name: str = "grav"
+        self.baro_col_name: str = "baro-press"
 
     def apply_grav_conversion(
         self,
@@ -33,7 +33,7 @@ class IGravCorrection(Correction):
         logger.debug("Applying conversion factor of %s to gravity column.", conversion_factor)
 
         if grav_col_index is None:
-            grav_col_index = self._column_index(df, "Grav")
+            grav_col_index = self._column_index(df, self.grav_col_name)
 
         if grav_col_index >= len(df.columns):
             logger.error("Invalid column number: grav_col_index=%s.", grav_col_index)
@@ -66,6 +66,20 @@ class IGravCorrection(Correction):
             raise ValueError("Dataframe is empty.")
 
         logger.debug("Applying iGrav base corrections.")
+
+        if grav_col_index is None:
+            grav_col_index = self._column_index(df, self.grav_col_name)
+
+        if grav_col_index >= len(df.columns):
+            logger.error("Invalid column number: grav_col_index=%s.", grav_col_index)
+            raise ValueError(f"Invalid column number: grav_col_index={grav_col_index}.")
+
+        if baro_col_index is None:
+            baro_col_index = self._column_index(df, self.baro_col_name)
+
+        if baro_col_index >= len(df.columns):
+            logger.error("Invalid column number: baro_col_index=%s.", baro_col_index)
+            raise ValueError(f"Invalid column number: baro_col_index={baro_col_index}.")
 
         df = self.apply_grav_conversion(
             df,
