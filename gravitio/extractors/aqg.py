@@ -39,6 +39,8 @@ class AQGExtractor(CSVExtractor):
                 return df
 
             df.columns = header
+            if "" in df.columns:
+                df = df.drop("")
 
             logger.debug(
                 "Data loaded successfully from '%s', total valid rows: %s.",
