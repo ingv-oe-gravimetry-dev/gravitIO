@@ -30,7 +30,9 @@ class AQGCorrection(Correction):
             logger.error("Dataframe is empty.")
             raise ValueError("Dataframe is empty.")
 
-        logger.debug("Applying conversion factor of %s to gravity column.", conversion_factor)
+        logger.debug(
+            "Applying conversion factor of %s to gravity column.", conversion_factor
+        )
 
         if grav_col_index is None:
             grav_col_index = self._column_index(df, self.grav_col_name)
@@ -41,7 +43,9 @@ class AQGCorrection(Correction):
 
         grav_col_name = df.columns[grav_col_index]
         df = df.with_columns(
-            (pl.col(grav_col_name).cast(pl.Float64, strict=False) * conversion_factor).alias(grav_col_name)
+            (
+                pl.col(grav_col_name).cast(pl.Float64, strict=False) * conversion_factor
+            ).alias(grav_col_name)
         )
 
         logger.debug("Gravity conversion applied successfully.")
@@ -62,7 +66,12 @@ class AQGCorrection(Correction):
             logger.debug("No columns containing '(nm/s^2)' found.")
             return df
 
-        df = df.with_columns([(pl.col(col).cast(pl.Float64, strict=False) * 1e-9).alias(col) for col in nms_columns])
+        df = df.with_columns(
+            [
+                (pl.col(col).cast(pl.Float64, strict=False) * 1e-9).alias(col)
+                for col in nms_columns
+            ]
+        )
 
         logger.debug("Converted %s columns from nm/s^2 to m/s^2.", len(nms_columns))
         return df
@@ -111,7 +120,9 @@ class AQGCorrection(Correction):
             df,
             grav_col_index=grav_col_index,
             baro_col_index=baro_col_index,
-            baro_correction_factor=self._baro_corr_factor if baro_corr_factor is None else baro_corr_factor,
+            baro_correction_factor=self._baro_corr_factor
+            if baro_corr_factor is None
+            else baro_corr_factor,
         )
 
         return df
