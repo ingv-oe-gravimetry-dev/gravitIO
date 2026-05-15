@@ -47,6 +47,26 @@ class AQGCorrection(Correction):
         logger.debug("Gravity conversion applied successfully.")
         return df
 
+    def nms_to_meters(self, df: pl.DataFrame) -> pl.DataFrame:
+        """
+        Converts all columns containing '(nm/s^2)' from nm/s^2 to m/s^2.
+        """
+
+        if df is None or df.height == 0:
+            logger.error("Dataframe is empty.")
+            raise ValueError("Dataframe is empty.")
+
+        nms_columns = [col for col in df.columns if "(nm/s^2)" in col]
+
+        if len(nms_columns) == 0:
+            logger.debug("No columns containing '(nm/s^2)' found.")
+            return df
+
+        df = df.with_columns([(pl.col(col).cast(pl.Float64, strict=False) * 1e-9).alias(col) for col in nms_columns])
+
+        logger.debug("Converted %s columns from nm/s^2 to m/s^2.", len(nms_columns))
+        return df
+
     def apply_base_corrections(
         self,
         df: pl.DataFrame,
