@@ -1,4 +1,5 @@
 # gravitIO 🍎
+[![alt](https://img.shields.io/badge/license-MIT-green?logo=dark-green)](/LICENSE) [![Open Source? Yes!](https://badgen.net/badge/Open%20Source%20%3F/Yes%21/blue?icon=github)]()
 
 `gravitio` is a Python package that provides parsers and basic corrections for major gravimeter data formats, including **AQG** (Absolute Quantum Gravimeter) and **iGrav** (Superconducting Gravimeter).
 
